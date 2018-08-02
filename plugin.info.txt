@@ -1,0 +1,7 @@
+base   translatemapping
+author Štěpán Stenchlák
+email  s.stenchlak@gmail.com
+date   2018-08-01
+name   Translate mapping
+desc   Simple translation plugin with ID translation mapping
+url    https://github.com/fykosak

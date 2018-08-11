@@ -13,7 +13,13 @@ if (!defined('DOKU_INC')) {
 
 class action_plugin_translatemapping extends DokuWiki_Action_Plugin
 {
-
+    /**
+     * @var array List of language names by code
+     */
+    private $langnames = [
+        'cs' => 'česky',
+        'en' => 'English',
+    ];
     /**
      * Registers a callback function for a given event
      *
@@ -45,11 +51,15 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         list($pageLang, $langPaths, $defaults) = $this->findLanguageTree($ID);
 
         // Set page lang
-        if ($pageLang) $conf['lang'] = $pageLang;
+        if ($pageLang) {
+            $conf['lang'] = $pageLang;
+        }
 
         // Remove actual language from list of translations
         unset($langPaths[$pageLang]);
-        if (isset($defaults[$pageLang])) unset($defaults[$pageLang]);
+        if (isset($defaults[$pageLang])) {
+            unset($defaults[$pageLang]);
+        }
 
         // Redirect if URL is invalid
         $domain = $this->getDomainByLang($conf['lang']);
@@ -62,8 +72,9 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
 
         // Set available translations
         foreach ($translations as $lang => $translation) {
+            $domain = $this->getDomainByLang($lang);
             $conf['available_lang'][] = [
-                'content' => ['text' => str_replace(':', ' ', $translation), 'url' => $this->getConf('host_prefix') . $this->getDomainByLang($lang) . wl($translation), 'class' => '', 'more' => ''],
+                'content' => ['text' => sprintf($this->getConf('translation_format'), $this->getLangName($lang), p_get_first_heading($translation), $lang), 'url' => ($domain ? $this->getConf('host_prefix') . $domain : '') . wl($translation), 'class' => '', 'more' => ''],
                 'code' => $lang
             ];
         }
@@ -92,9 +103,10 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
                  * Special case: first line (mail pages)
                  */
                 if ($lineNumber === 0) {
-                    $tokens = explode(' ', substr($dataLine, $p+2));
-                    for ($i = 0; $i < count($tokens); $i+=2) {
-                        $defaults[$tokens[$i]] = $tokens[$i + 1];
+                    $tokens = explode(',', substr($dataLine, $p+2));
+                    foreach ($tokens as $token) {
+                        list($lang, $translation) = explode(':', $token, 2);
+                        $defaults[$lang] = $translation;
                     }
                 }
 
@@ -105,18 +117,18 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
                  */
 
                 if ($level - 1 === $inLevel && $level < count($path)) { // Possible match
-                    $words = explode(', ', substr($dataLine, $p+2));
+                    $words = explode(';', substr($dataLine, $p+2));
                     foreach ($words as $word) { // There could be more groups of words (word is "en page cs stranka <language> <translation>")
-                        $tokens = explode(' ', $word);
-                        for ($i = 0; $i+1 < count($tokens); $i+=2) {
-                            $lang = $tokens[$i];
-                            $translation = $tokens[$i+1];
+                        $tokens = explode(',', $word);
+                        foreach ($tokens as $token) {
+                            list($lang, $translation) = explode(':', $token, 2);
 
-                            if ((!$pageLang || $lang === $pageLang) && preg_match('/^' . str_replace('*', '(.*)', $translation) . '$/', $path[$level], $mathes)) { // Match found
+                            if ((!$pageLang || $lang === $pageLang) && preg_match('/^' . str_replace('*', '(.*)', $translation) . '$/', $path[$level], $matches)) { // Match found
                                 $pageLang = $lang;
                                 $inLevel++;
-                                for ($i = 0; $i < count($tokens); $i+=2) { // Save all language variations
-                                    $langPaths[$tokens[$i]][$inLevel] = str_replace('*', $mathes[1], $tokens[$i+1]);
+                                foreach ($tokens as $sameToken) { // Save all language variations
+                                    list($lang, $translation) = explode(':', $sameToken, 2);
+                                    $langPaths[$lang][$inLevel] = str_replace('*', $matches[1], $translation);
                                 }
 
                                 break 2;
@@ -145,7 +157,7 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         $langs = array_keys(array_merge($langPaths, $defaults));
         foreach ($langs as $lang){
             if (isset($langPaths[$lang])) {
-                // Try full paht
+                // Try full path
                 if (page_exists($p = implode(':', $langPaths[$lang]))) {
                     $cropped[$lang] = $p;
                     break;
@@ -161,8 +173,9 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
             }
 
             // Use default
-            if (isset($defaults[$lang]))
+            if (isset($defaults[$lang])) {
                 $cropped[$lang] = $defaults[$lang];
+            }
         }
 
         return $cropped;
@@ -175,14 +188,24 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
     private function getDomainByLang($lang)
     {
         $default = null;
-        $tokens = explode(' ', $this->getConf('http_hosts_by_lang', ''));
-        for ($i = 0; $i+1 < count($tokens); $i+=2) {
-            if ($tokens[$i] === $lang)
-                return $tokens[$i+1];
-            $default = $default ?: $tokens[$i+1];
+        $tokens = explode(',', $this->getConf('http_hosts_by_lang', ''));
+        foreach ($tokens as $token) {
+            list ($l, $d) = explode(':', $token, 2);
+            if ($l === $lang) {
+                return $d;
+            }
+            $default = $default ?: $d;
         }
 
         return $default;
     }
 
+    /**
+     * @param string $lang
+     * @return string|null
+     */
+    private function getLangName($lang)
+    {
+        return isset($this->langnames[$lang]) ? $this->langnames[$lang] : null;
+    }
 }

@@ -9,3 +9,5 @@
 $meta['language_data_page'] = array('string');
 $meta['http_hosts_by_lang'] = array('string');
 $meta['host_prefix'] = array('string');
+
+$meta['translation_format'] = array('string');

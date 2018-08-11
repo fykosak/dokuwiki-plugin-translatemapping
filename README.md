@@ -1,12 +1,12 @@
 ## Language data page example
 ````
-  * cs start en english_title_page                          First line is special, contains title pages
-  * cs rocnik* en year*                                     You can use wildcard asterisk
-    * cs ulohy en problems, cs vysledky en results          Multiple translations are sepatared by ", "
-      * cs serie* en series*                                Each level is two spaces deeper
-    * cs vaf en wap
-    * cs fyziklani en physicsbrawl
-  * cs o-nas en about-us
+  * cs:start,en:en                                          First line is special, contains title pages
+  * cs:rocnik*,en:year*                                     You can use wildcard asterisk
+    * cs:ulohy,en:problems;cs:vysledky,en:results           Multiple translations are sepatared by semicolon
+      * cs:serie*,en:series*                                Each level is two spaces deeper
+    * cs:vaf,en:wap
+    * cs:serial,en:serial
+  * cs:o-nas,en:about-us
 ````
 
 If you install this plugin manually, make sure it is installed in

@@ -6,5 +6,7 @@
  */
 
 $conf['language_data_page']    = 'system:languages';
-$conf['http_hosts_by_lang']    = 'cs fykos.cz en fykos.org';
+$conf['http_hosts_by_lang']    = '';
 $conf['host_prefix']    = 'https://';
+
+$conf['translation_format']    = '%s: %s';

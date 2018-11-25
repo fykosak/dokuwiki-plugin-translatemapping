@@ -14,6 +14,11 @@ if (!defined('DOKU_INC')) {
 class action_plugin_translatemapping extends DokuWiki_Action_Plugin
 {
     /**
+     * @var null|string Language of the DW if it has been changed
+     */
+    private $locale = null;
+
+    /**
      * @var array List of language names by code
      */
     private $langnames = [
@@ -30,6 +35,68 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
     public function register(Doku_Event_Handler $controller)
     {
         $controller->register_hook('ACTION_ACT_PREPROCESS', 'BEFORE', $this, 'handle_action_act_preprocess');
+
+        // Translate javascript because it contains translations for some plugins
+        // It sets GET parameter to js.php link and then reads it to determine which translation should be used.
+        // @see https://github.com/splitbrain/dokuwiki-plugin-translation/blob/master/action.php
+        if (basename($_SERVER['PHP_SELF']) == 'js.php') {
+            $controller->register_hook('INIT_LANG_LOAD', 'BEFORE', $this, 'translation_js');
+            $controller->register_hook('JS_CACHE_USE', 'BEFORE', $this, 'translation_jscache');
+        } else {
+            $controller->register_hook('TPL_METAHEADER_OUTPUT', 'BEFORE', $this, 'setJsCacheKey');
+        }
+    }
+
+    /**
+     * Hook Callback. Pass language code to JavaScript dispatcher
+     * @see https://github.com/splitbrain/dokuwiki-plugin-translation/blob/master/action.php
+     *
+     * @param Doku_Event $event
+     * @param $args
+     * @return bool
+     */
+    function setJsCacheKey(Doku_Event $event, $args) {
+        if(!isset($this->locale)) return false;
+        $count = count($event->data['script']);
+        for($i = 0; $i < $count; $i++) {
+            if(strpos($event->data['script'][$i]['src'], '/lib/exe/js.php') !== false) {
+                $event->data['script'][$i]['src'] .= '&lang=' . hsc($this->locale);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Hook Callback. Load correct translation when loading JavaScript
+     * @see https://github.com/splitbrain/dokuwiki-plugin-translation/blob/master/action.php
+     *
+     * @param Doku_Event $event
+     * @param $args
+     */
+    function translation_js(Doku_Event $event, $args) {
+        global $conf;
+        if(!isset($_GET['lang'])) return;
+        $lang = $_GET['lang'];
+        $event->data = $lang;
+        $conf['lang'] = $lang;
+    }
+
+    /**
+     * Hook Callback. Make sure the JavaScript is translation dependent
+     * @see https://github.com/splitbrain/dokuwiki-plugin-translation/blob/master/action.php
+     *
+     * @param Doku_Event $event
+     * @param $args
+     */
+    function translation_jscache(Doku_Event $event, $args) {
+        if(!isset($_GET['lang'])) return;
+
+        $lang = $_GET['lang'];
+        // reuse the constructor to reinitialize the cache key
+        $event->data->__construct(
+            $event->data->key . $lang,
+            $event->data->ext
+        );
     }
 
     /**
@@ -51,8 +118,9 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         list($pageLang, $langPaths, $defaults) = $this->findLanguageTree($ID);
 
         // Set page lang
-        if ($pageLang) {
+        if ($pageLang && $conf['lang'] != $pageLang) {
             $conf['lang'] = $pageLang;
+            $this->locale = $pageLang;
         }
 
         // Remove actual language from list of translations

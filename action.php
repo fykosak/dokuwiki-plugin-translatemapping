@@ -123,6 +123,9 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
             $this->locale = $pageLang;
         }
 
+        // Set title page
+        $conf['titlepage'] = $defaults[$pageLang];
+
         // Remove actual language from list of translations
         unset($langPaths[$pageLang]);
         if (isset($defaults[$pageLang])) {

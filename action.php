@@ -25,6 +25,12 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         'cs' => 'česky',
         'en' => 'English',
     ];
+
+    /**
+     * @var array List of all the language mutations of the page
+     */
+    private $fullLinks = [];
+
     /**
      * Registers a callback function for a given event
      *
@@ -45,6 +51,20 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         } else {
             $controller->register_hook('TPL_METAHEADER_OUTPUT', 'BEFORE', $this, 'setJsCacheKey');
         }
+
+        // This action is triggered when the meta in <head> tag is generated
+        $controller->register_hook('TPL_METAHEADER_OUTPUT', 'BEFORE', $this, 'handle_action_metaheader');
+    }
+
+    /**
+     * Wrap around wl() function to have nice URLs
+     * @param $ID
+     * @return string
+     */
+    private function wl($ID) {
+        $link = wl($ID);
+        if ($link === '/start') $link = '/';
+        return $link;
     }
 
     /**
@@ -126,16 +146,10 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         // Set title page
         $conf['titlepage'] = $defaults[$pageLang];
 
-        // Remove actual language from list of translations
-        unset($langPaths[$pageLang]);
-        if (isset($defaults[$pageLang])) {
-            unset($defaults[$pageLang]);
-        }
-
         // Redirect if URL is invalid
         $domain = $this->getDomainByLang($conf['lang']);
         if ($domain && substr($_SERVER['HTTP_HOST'], -strlen($domain)) !== $domain) {
-            send_redirect($this->getConf('host_prefix') . $domain . wl($ID));
+            send_redirect($this->getConf('host_prefix') . $domain . $this->wl($ID));
         }
 
         // Try to find existing pages from translations
@@ -144,12 +158,32 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
         // Set available translations
         foreach ($translations as $lang => $translation) {
             $domain = $this->getDomainByLang($lang);
-            $conf['available_lang'][] = [
-                'content' => ['text' => sprintf($this->getConf('translation_format'), $this->getLangName($lang), p_get_first_heading($translation), $lang), 'url' => ($domain ? $this->getConf('host_prefix') . $domain : '') . wl($translation), 'class' => '', 'more' => ''],
-                'code' => $lang
+            $this->fullLinks[$lang] = ($domain ? $this->getConf('host_prefix') . $domain : '') . $this->wl($translation);
+            if ($lang !== $pageLang) {
+                $conf['available_lang'][] = [
+                    'content' => ['text' => sprintf($this->getConf('translation_format'), $this->getLangName($lang), p_get_first_heading($translation), $lang), 'url' => $this->fullLinks[$lang], 'class' => '', 'more' => ''],
+                    'code' => $lang
+                ];
+            }
+        }
+    }
+
+    /**
+     * Used to add link rel="alternate" to the html
+     * @param Doku_Event $event
+     * @param $param
+     */
+    public function handle_action_metaheader(Doku_Event $event, $param)
+    {
+        foreach ($this->fullLinks as $lang => $link) {
+            $event->data["link"][] = [
+                "rel" => "alternate",
+                "hreflang" => $lang,
+                "href" => $link,
             ];
         }
     }
+
 
     /**
      * Tries to find the language of the $id and translate the path to different languages.
@@ -231,14 +265,14 @@ class action_plugin_translatemapping extends DokuWiki_Action_Plugin
                 // Try full path
                 if (page_exists($p = implode(':', $langPaths[$lang]))) {
                     $cropped[$lang] = $p;
-                    break;
+                    continue;
                 }
 
                 // Try crop it and add :start
                 for ($i = count($langPaths[$lang]); $i > 0; $i--) {
                     if (page_exists($p = implode(':', array_slice($langPaths[$lang], 0, $i)) . ':start')) {
                         $cropped[$lang] = $p;
-                        break 2;
+                        continue 2;
                     }
                 }
             }
